@@ -2,6 +2,7 @@ package org.grooscript.easy;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow;
 
 /**
@@ -18,10 +19,10 @@ public class EasyPublisher<T> implements Flow.Publisher<T> {
         subscriber.onSubscribe(new EasySubscription());
     }
 
-    public Flow.Publisher<T> submit(T item) {
-        this.subscribers.forEach(subscriber -> subscriber.onNext(item));
-        this.closed = true;
-        return this;
+    public void submit(T item) {
+        CompletableFuture.runAsync(() ->
+            this.subscribers.forEach(subscriber -> subscriber.onNext(item))
+        ).thenRun(() -> this.closed = true);
     }
 
     public boolean isClosed() {
