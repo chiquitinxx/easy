@@ -21,7 +21,9 @@ public class EasyPublisher<T> implements Flow.Publisher<T> {
 
     public void submit(T item) {
         CompletableFuture.runAsync(() ->
-            this.subscribers.forEach(subscriber -> subscriber.onNext(item))
+            this.subscribers.forEach(subscriber ->
+                    CompletableFuture.runAsync(() -> subscriber.onNext(item))
+            )
         ).thenRun(() -> this.closed = true);
     }
 

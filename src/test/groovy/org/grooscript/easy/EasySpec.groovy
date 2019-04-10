@@ -1,6 +1,7 @@
 package org.grooscript.easy
 
 import spock.lang.Specification
+import spock.lang.Unroll
 import spock.util.concurrent.PollingConditions
 
 import java.util.concurrent.atomic.AtomicInteger
@@ -60,8 +61,50 @@ class EasySpec extends Specification {
         }
     }
 
+    @Unroll
+    void 'multiple subscribers'() {
+        given:
+        PollingConditions conditions = new PollingConditions()
+        EasyPublisher<Integer> publisher = new EasyPublisher()
+        FIVE.times { addSubscriber(publisher, { number -> atomic.getAndAdd(FOUR * number) }) }
+
+        when:
+        publisher.submit(number)
+
+        then:
+        conditions.eventually {
+            assert atomic.get() == FIVE * FOUR * number
+        }
+
+        where:
+        number << [0, FOUR, FIVE, 1]
+    }
+
+    void 'multiple subscribers runs in different threads'() {
+        given:
+        PollingConditions conditions = new PollingConditions()
+        EasyPublisher<Integer> publisher = new EasyPublisher()
+        FIVE.times { addSubscriber(publisher, { number ->
+            sleep(400)
+            atomic.getAndAdd(FOUR * number) }
+        )}
+
+        when:
+        publisher.submit(THREE)
+
+        then:
+        conditions.timeout == 1.0
+        conditions.eventually {
+            assert atomic.get() == FIVE * FOUR * THREE
+        }
+    }
+
     private EasyPublisher<Integer> easyPublisher(Consumer<Integer> consumer) {
         EasyPublisher<Integer> publisher = new EasyPublisher()
+        addSubscriber(publisher, consumer)
+    }
+
+    private EasyPublisher<Integer> addSubscriber(EasyPublisher<Integer> publisher, Consumer consumer) {
         EasySubscriber<Integer> subscriber = new EasySubscriber(consumer)
         publisher.subscribe(subscriber)
         publisher
@@ -71,6 +114,9 @@ class EasySpec extends Specification {
         atomic.set(initialAtomic)
     }
 
+    private static final Integer THREE = 3
+    private static final Integer FOUR = 4
+    private static final Integer FIVE = 5
     private AtomicInteger atomic = new AtomicInteger()
     private static final Integer initialAtomic = 0
 }
