@@ -1,122 +1,128 @@
 package org.grooscript.easy
 
+import org.spockframework.runtime.SpockTimeoutError
 import spock.lang.Specification
 import spock.lang.Unroll
 import spock.util.concurrent.PollingConditions
-
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.function.Consumer
+import java.util.function.Supplier
 
 /**
  * JFL 2019-04-08
  */
 class EasySpec extends Specification {
 
-    void 'nothing happens if no subscriber'() {
-        given:
-        EasyPublisher<Integer> publisher = new EasyPublisher<>()
-
-        expect:
-        !publisher.isClosed()
-        !publisher.hasSubscribers()
-
-        when:
-        publisher.submit(5)
-
-        then:
-        publisher.isClosed()
-    }
-
-    void 'when the publisher submit, subscribers receives data'() {
+    void 'run a task'() {
         given:
         PollingConditions conditions = new PollingConditions()
-        EasyPublisher<Integer> publisher = easyPublisher({ Integer number -> atomic.set(number)})
+        Task<Integer> task = EasyTask.from SET_ATOMIC_FOUR_AND_RETURN_FIVE
 
         when:
-        publisher.submit(5)
+        task.run()
 
         then:
         conditions.eventually {
-            assert atomic.get() == 5
+            assert atomic.get() == FOUR
         }
     }
 
-    void 'submit call async to subscribers'() {
+    void 'task is lazy if not run'() {
         given:
         PollingConditions conditions = new PollingConditions()
-        EasyPublisher<Integer> publisher = easyPublisher({ Integer number ->
-            sleep(25)
-            atomic.set(number)
-        })
 
         when:
-        publisher.submit(5)
+        EasyTask.from SET_ATOMIC_FOUR_AND_RETURN_FIVE
+        conditions.eventually {
+            assert atomic.get() == FOUR
+        }
 
         then:
-        atomic.get() == 0
+        thrown(SpockTimeoutError)
+    }
 
-        and:
+    void 'do something with the result of task'() {
+        given:
+        PollingConditions conditions = new PollingConditions()
+
+        when:
+        EasyTask.from(SET_ATOMIC_FOUR_AND_RETURN_FIVE).then { value ->
+            int result = value * THREE
+            atomic.set(result)
+            result
+        }.run()
+
+        then:
         conditions.eventually {
-            assert atomic.get() == 5
+            assert atomic.get() == FIVE * THREE
+        }
+    }
+
+    void 'throws an exception in a task'() {
+        given:
+        PollingConditions conditions = new PollingConditions()
+        Task task = EasyTask.from THROWS_EXCEPTION, { TaskException taskException -> atomic.set(EXCEPTION) }
+
+        when:
+        task.run()
+
+        then:
+        conditions.eventually {
+            assert atomic.get() == EXCEPTION
+        }
+    }
+
+    void 'do something after run a task'() {
+        given:
+        PollingConditions conditions = new PollingConditions()
+        Task<Integer> task = EasyTask.from(SET_ATOMIC_FOUR_AND_RETURN_FIVE)
+
+        when:
+        task.andThen { value ->
+            int result = value * FIVE
+            atomic.set(result)
+        }
+        task.run()
+
+        then:
+        conditions.eventually {
+            assert atomic.get() == FIVE * FIVE
         }
     }
 
     @Unroll
-    void 'multiple subscribers'() {
+    void 'a run in task #taskToRun run all the chain'() {
         given:
         PollingConditions conditions = new PollingConditions()
-        EasyPublisher<Integer> publisher = new EasyPublisher()
-        FIVE.times { addSubscriber(publisher, { number -> atomic.getAndAdd(FOUR * number) }) }
+        Task<Integer> firstTask = EasyTask.from(SET_ATOMIC_FOUR_AND_RETURN_FIVE)
+        Task<Integer> secondTask = firstTask.then { number -> number * 2 }
+        Task<Integer> thirdTask = secondTask.then { number -> number * 3 }
+        Task<Integer> finalTask = thirdTask.then { number -> atomic.set(number); number }
+        Map<String, Task> tasks = [
+                firstTask: firstTask, secondTask: secondTask, thirdTask: thirdTask, finalTask: finalTask
+        ]
 
         when:
-        publisher.submit(number)
+        tasks[taskToRun].run()
 
         then:
         conditions.eventually {
-            assert atomic.get() == FIVE * FOUR * number
+            assert atomic.get() == 30
         }
 
         where:
-        number << [0, FOUR, FIVE, 1]
-    }
-
-    void 'multiple subscribers runs in different threads'() {
-        given:
-        PollingConditions conditions = new PollingConditions()
-        EasyPublisher<Integer> publisher = new EasyPublisher()
-        FIVE.times { addSubscriber(publisher, { number ->
-            sleep(400)
-            atomic.getAndAdd(FOUR * number) }
-        )}
-
-        when:
-        publisher.submit(THREE)
-
-        then:
-        conditions.timeout == 1.0
-        conditions.eventually {
-            assert atomic.get() == FIVE * FOUR * THREE
-        }
-    }
-
-    private EasyPublisher<Integer> easyPublisher(Consumer<Integer> consumer) {
-        EasyPublisher<Integer> publisher = new EasyPublisher()
-        addSubscriber(publisher, consumer)
-    }
-
-    private EasyPublisher<Integer> addSubscriber(EasyPublisher<Integer> publisher, Consumer consumer) {
-        EasySubscriber<Integer> subscriber = new EasySubscriber(consumer)
-        publisher.subscribe(subscriber)
-        publisher
+        taskToRun << ['firstTask', 'secondTask', 'thirdTask', 'finalTask']
     }
 
     void setup() {
-        atomic.set(initialAtomic)
+        atomic.set(INITIAL)
     }
 
+    private static final Supplier<Integer> THROWS_EXCEPTION = { -> throw new RuntimeException('test') }
+    private static final Integer EXCEPTION = -1
     private static final Integer THREE = 3
     private static final Integer FOUR = 4
     private static final Integer FIVE = 5
+    private static final Integer INITIAL = 0
+    private Supplier<Integer> SET_ATOMIC_FOUR_AND_RETURN_FIVE = { -> atomic.set(FOUR); FIVE }
     private AtomicInteger atomic = new AtomicInteger()
-    private static final Integer initialAtomic = 0
 }
