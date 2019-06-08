@@ -89,6 +89,29 @@ class EasySpec extends Specification {
         }
     }
 
+    void 'run a task twice'() {
+        given:
+        PollingConditions conditions = new PollingConditions()
+        Task<Integer> task = EasyTask.from(RETURN_FIVE)
+
+        expect:
+        atomic.get() == INITIAL
+
+        when:
+        task.andThen { value -> atomic.getAndAdd(value * 2) }
+        task.andThen { value -> atomic.getAndAdd(value * 2) }
+        task.run()
+
+        then:
+        conditions.eventually { assert atomic.get() == 20 }
+
+        when:
+        task.run()
+
+        then:
+        conditions.eventually { assert atomic.get() == 40 }
+    }
+
     @Unroll
     void 'a run in task #taskToRun run all the chain'() {
         given:
@@ -123,6 +146,7 @@ class EasySpec extends Specification {
     private static final Integer FOUR = 4
     private static final Integer FIVE = 5
     private static final Integer INITIAL = 0
+    private Supplier<Integer> RETURN_FIVE = { -> FIVE }
     private Supplier<Integer> SET_ATOMIC_FOUR_AND_RETURN_FIVE = { -> atomic.set(FOUR); FIVE }
     private AtomicInteger atomic = new AtomicInteger()
 }

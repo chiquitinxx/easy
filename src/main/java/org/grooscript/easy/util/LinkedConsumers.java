@@ -18,11 +18,14 @@ public class LinkedConsumers<T> {
         return this;
     }
 
-    public synchronized void processAllAndEmpty(T value) {
-        if (this.current != null) {
-            this.current.getValue().accept(value);
-            this.current = this.current.getNext();
-            this.processAllAndEmpty(value);
+    public synchronized void process(T value) {
+        processOnNext(value, this.current);
+    }
+
+    private void processOnNext(T value, Element<Consumer<T>> next) {
+        if (next != null) {
+            next.getValue().accept(value);
+            processOnNext(value, next.getNext());
         }
     }
 }

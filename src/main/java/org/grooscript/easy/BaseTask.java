@@ -3,6 +3,7 @@ package org.grooscript.easy;
 import org.grooscript.easy.util.LinkedConsumers;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -35,9 +36,9 @@ public abstract class BaseTask<T> implements Task<T> {
     public void run() {
         CompletableFuture.supplyAsync(() -> this.getSupplier().get())
                 .thenApplyAsync( result -> {
-                        this.resultConsumers.processAllAndEmpty(result);
+                        this.resultConsumers.process(result);
                         return result;
-                }).thenAcceptAsync(result -> this.taskConsumers.processAllAndEmpty(result)
+                }).thenAcceptAsync(result -> this.taskConsumers.process(result)
                 ).exceptionally(t -> {
                     t.printStackTrace();
                     getExceptionConsumer().accept(new TaskException(t));
@@ -55,5 +56,11 @@ public abstract class BaseTask<T> implements Task<T> {
         WithParentTask<R, T> nextTask = new WithParentTask<>(this, function, this.getExceptionConsumer());
         this.taskConsumers.add(nextTask::run);
         return nextTask;
+    }
+
+    @Override
+    public synchronized <R, U> Task<R> join(Task<U> task, BiFunction<T, U, R> biFunction) {
+        //TODO
+        return null;
     }
 }
