@@ -14,12 +14,13 @@ class WithParentTask<T, P> extends BaseTask<T> {
     private Supplier<T> supplier;
 
     WithParentTask(Task<P> parent, Function<P, T> function, Consumer<TaskException> exceptionConsumer) {
+        parent.andThen(this::processResult);
         this.parentTask = parent;
         this.function = function;
         this.exceptionConsumer = exceptionConsumer;
     }
 
-    void run(P parentResult) {
+    private void processResult(P parentResult) {
         this.supplier = (() -> this.function.apply(parentResult));
         this.run();
     }
@@ -36,5 +37,10 @@ class WithParentTask<T, P> extends BaseTask<T> {
     @Override
     Supplier<T> getSupplier() {
         return this.supplier;
+    }
+
+    @Override
+    void onFinishRun() {
+        this.supplier = null;
     }
 }

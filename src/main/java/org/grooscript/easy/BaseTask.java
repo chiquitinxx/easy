@@ -20,9 +20,9 @@ public abstract class BaseTask<T> implements Task<T> {
 
     Consumer<TaskException> exceptionConsumer;
     private LinkedConsumers<T> resultConsumers = new LinkedConsumers<>();
-    private LinkedConsumers<T> taskConsumers = new LinkedConsumers<>();
 
     abstract Supplier<T> getSupplier();
+    abstract void onFinishRun();
 
     private Consumer<TaskException> getExceptionConsumer() {
         if (exceptionConsumer != null) {
@@ -36,14 +36,13 @@ public abstract class BaseTask<T> implements Task<T> {
     public void run() {
         CompletableFuture.supplyAsync(() -> this.getSupplier().get())
                 .thenApplyAsync( result -> {
-                        this.resultConsumers.process(result);
-                        return result;
-                }).thenAcceptAsync(result -> this.taskConsumers.process(result)
-                ).exceptionally(t -> {
+                    this.resultConsumers.process(result);
+                    return result;
+                }).exceptionally(t -> {
                     t.printStackTrace();
                     getExceptionConsumer().accept(new TaskException(t));
                     return null;
-                });
+                }).whenComplete((r, t) -> onFinishRun());
     }
 
     @Override
@@ -53,14 +52,11 @@ public abstract class BaseTask<T> implements Task<T> {
 
     @Override
     public synchronized <R> Task<R> then(Function<T, R> function) {
-        WithParentTask<R, T> nextTask = new WithParentTask<>(this, function, this.getExceptionConsumer());
-        this.taskConsumers.add(nextTask::run);
-        return nextTask;
+        return new WithParentTask<>(this, function, this.getExceptionConsumer());
     }
 
     @Override
-    public synchronized <R, U> Task<R> join(Task<U> task, BiFunction<T, U, R> biFunction) {
-        //TODO
-        return null;
+    public synchronized <R, U> Task<R> combine(Task<U> task, BiFunction<T, U, R> biFunction) {
+        return new WithTwoParentsTask<>(this, task, biFunction, this.getExceptionConsumer());
     }
 }

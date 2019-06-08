@@ -13,6 +13,6 @@ public interface Task<T> {
     <R> Task<R> then(Function<T, R> function);
     //<R> Task<R> then(Function<T, R> function, Consumer<TaskException> exceptionConsumer);
     //<R> Task<R> then(FunctionWithExceptionConsumer<T, R> functionWithExceptionConsumer);
-    <R, U> Task<R> join(Task<U> task, BiFunction<T, U, R> biFunction);
+    <R, U> Task<R> combine(Task<U> task, BiFunction<T, U, R> biFunction);
     //List<Task<?>> split(Function<T, ?>... functions);
 }

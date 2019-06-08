@@ -31,4 +31,9 @@ public class EasyTask<T> extends BaseTask<T> {
     Supplier<T> getSupplier() {
         return this.supplier;
     }
+
+    @Override
+    void onFinishRun() {
+        //Nothing to do
+    }
 }

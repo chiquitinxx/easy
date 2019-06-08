@@ -12,6 +12,11 @@ import java.util.function.Supplier
  */
 class EasySpec extends Specification {
 
+    void 'atomic reset'() {
+        expect:
+        atomic.get() == INITIAL
+    }
+
     void 'run a task'() {
         given:
         PollingConditions conditions = new PollingConditions()
@@ -98,18 +103,42 @@ class EasySpec extends Specification {
         atomic.get() == INITIAL
 
         when:
-        task.andThen { value -> atomic.getAndAdd(value * 2) }
-        task.andThen { value -> atomic.getAndAdd(value * 2) }
+        int random = new Random().nextInt(TEN)
+        task.andThen { value -> atomic.getAndAdd(value * random) }
+        int expectedFirstResult = FIVE * random
         task.run()
 
         then:
-        conditions.eventually { assert atomic.get() == 20 }
+        conditions.eventually { assert atomic.get() == expectedFirstResult }
 
         when:
+        random = new Random().nextInt(TEN) + TEN
         task.run()
 
         then:
-        conditions.eventually { assert atomic.get() == 40 }
+        conditions.eventually { assert atomic.get() == expectedFirstResult + (FIVE * random) }
+    }
+
+    void 'run a task with parent twice'() {
+        given:
+        PollingConditions conditions = new PollingConditions()
+        Task<Integer> task = EasyTask.from(RETURN_FIVE)
+        int random = new Random().nextInt(TEN)
+        Task<Integer> secondTask = task.then { value -> atomic.getAndAdd(value * random) }
+
+        when:
+        int expectedFirstResult = FIVE * random
+        secondTask.run()
+
+        then:
+        conditions.eventually { assert atomic.get() == expectedFirstResult }
+
+        when:
+        random = new Random().nextInt(TEN) + TEN
+        secondTask.run()
+
+        then:
+        conditions.eventually { assert atomic.get() == expectedFirstResult + (FIVE * random) }
     }
 
     @Unroll
@@ -136,6 +165,57 @@ class EasySpec extends Specification {
         taskToRun << ['firstTask', 'secondTask', 'thirdTask', 'finalTask']
     }
 
+    @Unroll
+    void 'combine two tasks, running task #taskToRun'() {
+        given:
+        PollingConditions conditions = new PollingConditions()
+        Task<Integer> taskFive = EasyTask.from(RETURN_FIVE)
+        Task<Integer> taskFour = EasyTask.from(RETURN_FOUR)
+        Task<Integer> combined = taskFive.combine(taskFour, { first, second ->
+            Integer value = first - second
+            atomic.set(value)
+            value
+        })
+        Map<String, Task> tasks = [
+                taskFive: taskFive, taskFour: taskFour, combined: combined
+        ]
+
+        when:
+        tasks[taskToRun].run()
+
+        then:
+        conditions.eventually { assert atomic.get() == 1 }
+
+        where:
+        taskToRun << ['taskFive', 'taskFour', 'combined']
+    }
+
+    void 'combine a task twice'() {
+        given:
+        PollingConditions conditions = new PollingConditions()
+        int random = new Random().nextInt(TEN)
+        Task<Integer> task1 = EasyTask.from { -> random * 2 }
+        Task<Integer> task2 = EasyTask.from { -> random * 3 }
+        Task<Integer> combine = task1.combine(task2, { a, b ->
+            Integer result = b - a
+            atomic.set(result)
+            result
+        })
+
+        when:
+        combine.run()
+
+        then:
+        conditions.eventually { assert atomic.get() == random }
+
+        when:
+        random = new Random().nextInt(TEN) + TEN
+        combine.run()
+
+        then:
+        conditions.eventually { assert atomic.get() == random }
+    }
+
     void setup() {
         atomic.set(INITIAL)
     }
@@ -145,8 +225,10 @@ class EasySpec extends Specification {
     private static final Integer THREE = 3
     private static final Integer FOUR = 4
     private static final Integer FIVE = 5
+    private static final Integer TEN = 10
     private static final Integer INITIAL = 0
     private Supplier<Integer> RETURN_FIVE = { -> FIVE }
+    private Supplier<Integer> RETURN_FOUR = { -> FOUR }
     private Supplier<Integer> SET_ATOMIC_FOUR_AND_RETURN_FIVE = { -> atomic.set(FOUR); FIVE }
     private AtomicInteger atomic = new AtomicInteger()
 }
