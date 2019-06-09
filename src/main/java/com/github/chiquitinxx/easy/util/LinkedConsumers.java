@@ -1,4 +1,4 @@
-package org.grooscript.easy.util;
+package com.github.chiquitinxx.easy.util;
 
 import java.util.function.Consumer;
 

@@ -1,4 +1,4 @@
-package org.grooscript.easy.util;
+package com.github.chiquitinxx.easy.util;
 
 /**
  * JFL 2019-06-07

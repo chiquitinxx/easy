@@ -1,4 +1,4 @@
-package org.grooscript.easy
+package com.github.chiquitinxx.easy.task
 
 import org.spockframework.runtime.SpockTimeoutError
 import spock.lang.Specification
@@ -10,7 +10,7 @@ import java.util.function.Supplier
 /**
  * JFL 2019-04-08
  */
-class EasySpec extends Specification {
+class EasyTaskSpec extends Specification {
 
     void 'atomic reset'() {
         expect:

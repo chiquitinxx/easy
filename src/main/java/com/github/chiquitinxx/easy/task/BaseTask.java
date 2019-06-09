@@ -1,6 +1,6 @@
-package org.grooscript.easy;
+package com.github.chiquitinxx.easy.task;
 
-import org.grooscript.easy.util.LinkedConsumers;
+import com.github.chiquitinxx.easy.util.LinkedConsumers;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;

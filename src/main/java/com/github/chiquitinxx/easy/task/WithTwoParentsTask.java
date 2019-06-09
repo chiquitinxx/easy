@@ -1,4 +1,4 @@
-package org.grooscript.easy;
+package com.github.chiquitinxx.easy.task;
 
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
